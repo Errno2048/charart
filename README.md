@@ -1,5 +1,9 @@
 # Char-art
- Character art image & video generator.
+ Character art image & video generator. Support literally ANY characters.
+
+![](demo/bliss.png)
+
+## A simple example
 
 ```python
 import math
@@ -41,6 +45,7 @@ out_image.save('test_image_out.png')
 
 # Video to character art
 in_video = moviepy.VideoFileClip('test_video.mp4')
+# To change the lightness of the video to avoid extremely dark or bright frames
 norm_filter = video_norm_filter(in_video, outlier_ratio=0.01, skip_frames=30)
 out_video = charart.video_transform(in_video, skip_frames=4, filter=norm_filter)
 out_video.write_videofile('test_video_out.mp4')

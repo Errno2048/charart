@@ -1,1 +1,1 @@
-from .video import video_norm_filter
+from .video import video_norm_filter, image_norm_filter

@@ -113,7 +113,7 @@ class Charart:
             if self._charset_box is None:
                 self._charset_box = box
             else:
-                self._charset_box.union(box)
+                self._charset_box.union(box, inplace=True)
             self._charset.append(self.char(c, box))
         self._charset_set.update(chars)
 
@@ -186,7 +186,10 @@ class Charart:
             self._charset_buf.paste('#ffffff', ori_box.tuple())
             draw = ImageDraw.Draw(self._charset_buf)
             draw.font = self._font
-            draw.text((-self._charset_box.left, -self._charset_box.top), char.char, anchor='la', fill='#000000')
+            draw.text((
+                -self._charset_box.left + (self._charset_box.width - char.box.width) / 2,
+                -self._charset_box.top + (self._charset_box.height - char.box.height) / 2,
+            ), char.char, anchor='la', fill='#000000')
             image_array = torch.tensor(np.array(self._charset_buf), device=self._device)[:, :, :3].transpose(0, 1).to(torch.float) / 255.
             image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant)
             char_features = self._get_features(image_lab).reshape(-1)
