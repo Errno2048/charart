@@ -229,14 +229,14 @@ class Charart:
                 ),
             )
             image_cropped = image_lab[feature_box.left : feature_box.right, feature_box.top : feature_box.bottom]
-            hs, vs, cs = image_cropped.strides
+            ohs, ovs, ocs = image_cropped.strides
             image_strided = np.lib.stride_tricks.as_strided(
                 image_cropped,
                 (boxes_h, boxes_v, 3, self._charset_box.width, self._charset_box.height),
                 (
-                    hs * self._charset_box.width, vs * self._charset_box.height,
-                    cs,
-                    hs, vs,
+                    ohs * self._charset_box.width, ovs * self._charset_box.height,
+                    ocs,
+                    ohs, ovs,
                 ),
             )
 
