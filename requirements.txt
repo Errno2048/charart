@@ -1,0 +1,5 @@
+numpy
+moviepy
+pillow
+scikit-image
+torch
