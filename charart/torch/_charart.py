@@ -212,6 +212,7 @@ class Charart:
     def transform(self, image : Image.Image, dist_norm=2., set_color=True, char_normalize=False, return_array=False):
         self._check_and_prepare()
 
+        ref_black, ref_white = self._lab_ref_color
         if isinstance(image, Image.Image):
             image_array = torch.tensor(np.array(image), device=self._device)[:, :, :3].transpose(0, 1).to(torch.float) / 255.
             image_width, image_height = image.width, image.height
@@ -262,7 +263,6 @@ class Charart:
                 ),
             )
 
-            ref_black, ref_white = self._lab_ref_color
             ori_color = image_strided.reshape(boxes_h, boxes_v, 3, -1).mean(dim=-1)
             text_image_ratio = (text_image_strided[:, :, 0:1, ...] - ref_white[0].view(1, 1, 1, 1, 1)) \
                                 / (ref_black[0] - ref_white[0])
@@ -277,9 +277,9 @@ class Charart:
                 (hs, vs, cs),
             )
 
-        text_image = color.lab2rgb(text_image, illuminant=self._lab_illuminant, observer=self._lab_observer)
-        new_text_image = text_image.new_ones(image_width, image_height, 3)
+        new_text_image = text_image.new_zeros(image_width, image_height, 3) + ref_white.view(1, 1, -1)
         new_text_image[feature_box.left : feature_box.right, feature_box.top : feature_box.bottom] = text_image
+        new_text_image = color.lab2rgb(new_text_image, illuminant=self._lab_illuminant, observer=self._lab_observer)
         new_image_array = (new_text_image.transpose(0, 1) * 255).to(torch.uint8)
 
         if return_array:

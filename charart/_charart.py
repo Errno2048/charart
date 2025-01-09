@@ -209,11 +209,18 @@ class Charart:
     def transform(self, image : Image.Image, dist_norm=2., set_color=True, char_normalize=False, return_array=False):
         self._check_and_prepare()
 
-        boxes_h, boxes_v = (image.width + self._hspace) // self._charset_box.width, (image.height + self._vspace) // self._charset_box.height
-        start_x, start_y = (image.width + self._hspace - boxes_h * self._charset_box.width) // 2, (image.height + self._vspace - boxes_v * self._charset_box.height) // 2
+        ref_black, ref_white = self._lab_ref_color
+        if isinstance(image, Image.Image):
+            image_array = np.array(image)[:, :, :3].transpose((1, 0, 2)).astype(float) / 255
+            image_width, image_height = image.width, image.height
+        else:
+            image_array = image
+            image_width, image_height = image_array.shape[:2]
+
+        boxes_h, boxes_v = (image_width + self._hspace) // self._charset_box.width, (image_height + self._vspace) // self._charset_box.height
+        start_x, start_y = (image_width + self._hspace - boxes_h * self._charset_box.width) // 2, (image_height + self._vspace - boxes_v * self._charset_box.height) // 2
         feature_box = Box(start_x, start_y, start_x + boxes_h * self._charset_box.width, start_y + boxes_v * self._charset_box.height)
 
-        image_array = np.array(image)[:, :, :3].transpose((1, 0, 2)).astype(float) / 255
         image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant, observer=self._lab_observer)
         image_features = self._get_features(image_lab, feature_box)
         image_features = image_features.reshape(1, *image_features.shape)
@@ -253,7 +260,6 @@ class Charart:
                 ),
             )
 
-            ref_black, ref_white = self._lab_ref_color
             ori_color = image_strided.reshape(boxes_h, boxes_v, 3, -1).mean(axis=-1)
             text_image_ratio = (text_image_strided[:, :, 0:1, ...] - ref_white[0].reshape(1, 1, 1, 1, 1)) \
                                 / (ref_black[0] - ref_white[0])
@@ -268,9 +274,9 @@ class Charart:
                 (hs, vs, cs),
             )
 
-        text_image = color.lab2rgb(text_image, illuminant=self._lab_illuminant, observer=self._lab_observer)
-        new_text_image = np.ones((image.width, image.height, 3), dtype=float)
+        new_text_image = np.zeros((image_width, image_height, 3), dtype=float) + ref_white
         new_text_image[feature_box.left : feature_box.right, feature_box.top : feature_box.bottom] = text_image
+        new_text_image = color.lab2rgb(new_text_image, illuminant=self._lab_illuminant, observer=self._lab_observer)
         new_image_array = (new_text_image.transpose((1, 0, 2)) * 255).astype(np.uint8)
 
         if return_array:
