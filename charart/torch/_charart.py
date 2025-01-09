@@ -1,7 +1,7 @@
 import typing
 from collections.abc import Iterable as _Iterable
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageColor
 import torch
 import numpy as np
 from . import color
@@ -71,7 +71,10 @@ class Charart:
         vparts : int = 1,
         hspace : int = 0,
         vspace : int = 0,
+        background_color = '#ffffff',
+        foreground_color = '#000000',
         lab_illuminant = 'D65',
+        lab_observer = '2',
         device=torch.device('cpu'),
     ):
         self._font = font
@@ -81,9 +84,16 @@ class Charart:
         self._hspace = hspace
         self._vspace = vspace
         self._lab_illuminant = lab_illuminant
+        self._lab_observer = lab_observer
         self._device = device
 
-        ref_color = color.rgb2lab(torch.tensor([[[0., 0., 0.], [1., 1., 1.]]], device=self._device), illuminant=lab_illuminant)
+        self._bg = ImageColor.getcolor(background_color, 'RGB')
+        self._fg = ImageColor.getcolor(foreground_color, 'RGB')
+        ref_color = color.rgb2lab(
+            torch.tensor([[list(self._fg), list(self._bg)]], device=self._device, dtype=torch.float) / 255.,
+            illuminant=lab_illuminant,
+            observer=lab_observer,
+        )
         self._lab_ref_color = (ref_color[0, 0], ref_color[0, 1])
 
         self.clear()
@@ -94,7 +104,7 @@ class Charart:
         self._charset_box = None
         self._charset_features = None
         self._charset_prepared = False
-        self._charset_buf = Image.new('RGB', (self._size * 3, self._size * 3), color='#ffffff')
+        self._charset_buf = Image.new('RGB', (self._size * 3, self._size * 3), color=self._bg)
         self._charset_lightness = None
         self._charset_images = None
 
@@ -124,7 +134,7 @@ class Charart:
     def _get_features(self, image : Image.Image, box=None):
         if isinstance(image, Image.Image):
             image_array = torch.tensor(np.array(image), device=self._device)[:, :, :3].transpose(0, 1).to(torch.float) / 255.
-            image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant)[:, :, 0]
+            image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant, observer=self._lab_observer)[:, :, 0]
         else:
             image_lab = image[:, :, 0]
         crop_width, crop_height = self._charset_box.width // self._hparts, self._charset_box.height // self._vparts
@@ -148,7 +158,7 @@ class Charart:
     def _get_colors(self, image : Image, box=None):
         if isinstance(image, Image.Image):
             image_array = torch.tensor(np.array(image), device=self._device)[:, :, :3].transpose(0, 1).to(torch.float) / 255.
-            image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant)
+            image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant, observer=self._lab_observer)
         else:
             image_lab = image
         if box:
@@ -178,20 +188,20 @@ class Charart:
         self._charset_box.move(move_x, move_y, inplace=True)
         self._charset_box.right += hspace_pad
         self._charset_box.bottom += vspace_pad
-        self._charset_buf = Image.new('RGB', (self._charset_box.width, self._charset_box.height), '#ffffff')
+        self._charset_buf = Image.new('RGB', (self._charset_box.width, self._charset_box.height), self._bg)
         ori_box = self._charset_box.move(-self._charset_box.left, -self._charset_box.top)
         self._charset_features = []
         self._charset_images = []
         for char in self._charset:
-            self._charset_buf.paste('#ffffff', ori_box.tuple())
+            self._charset_buf.paste(self._bg, ori_box.tuple())
             draw = ImageDraw.Draw(self._charset_buf)
             draw.font = self._font
             draw.text((
                 -self._charset_box.left + (self._charset_box.width - char.box.width) / 2,
                 -self._charset_box.top + (self._charset_box.height - char.box.height) / 2,
-            ), char.char, anchor='la', fill='#000000')
+            ), char.char, anchor='la', fill=self._fg)
             image_array = torch.tensor(np.array(self._charset_buf), device=self._device)[:, :, :3].transpose(0, 1).to(torch.float) / 255.
-            image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant)
+            image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant, observer=self._lab_observer)
             char_features = self._get_features(image_lab).reshape(-1)
             self._charset_features.append(char_features)
             self._charset_images.append(image_lab)
@@ -213,7 +223,7 @@ class Charart:
         start_x, start_y = (image_width + self._hspace - boxes_h * self._charset_box.width) // 2, (image_height + self._vspace - boxes_v * self._charset_box.height) // 2
         feature_box = Box(start_x, start_y, start_x + boxes_h * self._charset_box.width, start_y + boxes_v * self._charset_box.height)
 
-        image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant)
+        image_lab = color.rgb2lab(image_array, illuminant=self._lab_illuminant, observer=self._lab_observer)
         image_features = self._get_features(image_lab, feature_box)
         image_features = image_features.view(1, *image_features.shape)
         charset_features = self._charset_features.view(self._charset_features.shape[0], 1, 1, -1)
@@ -267,7 +277,7 @@ class Charart:
                 (hs, vs, cs),
             )
 
-        text_image = color.lab2rgb(text_image, illuminant=self._lab_illuminant)
+        text_image = color.lab2rgb(text_image, illuminant=self._lab_illuminant, observer=self._lab_observer)
         new_text_image = text_image.new_ones(image_width, image_height, 3)
         new_text_image[feature_box.left : feature_box.right, feature_box.top : feature_box.bottom] = text_image
         new_image_array = (new_text_image.transpose(0, 1) * 255).to(torch.uint8)
