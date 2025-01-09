@@ -293,17 +293,20 @@ class Charart:
         self,
         video : moviepy.VideoClip,
         skip_frames=0,
-        filter : typing.Optional[typing.Callable[[torch.Tensor], torch.Tensor]] = None,
+        preprocess : typing.Optional[typing.Callable[[torch.Tensor], torch.Tensor]] = None,
+        postprocess : typing.Optional[typing.Callable[[torch.Tensor], torch.Tensor]] = None,
         **kwargs,
     ):
         arr, frame_count = None, 0
         def transform(image : np.ndarray):
-            nonlocal arr, frame_count, filter
+            nonlocal arr, frame_count
             if skip_frames <= 0 or frame_count % skip_frames == 0:
                 image = torch.tensor(image, device=self._device).transpose(0, 1).to(torch.float) / 255.
-                if filter:
-                    image = filter(image)
+                if preprocess:
+                    image = preprocess(image)
                 arr = self.transform(image, return_array=True, **kwargs).numpy(force=True)
+                if postprocess:
+                    arr = postprocess(arr)
             if skip_frames > 0:
                 frame_count = (frame_count + 1) % skip_frames
             return arr

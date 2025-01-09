@@ -290,20 +290,21 @@ class Charart:
         self,
         video : moviepy.VideoClip,
         skip_frames=0,
-        filter : typing.Optional[typing.Callable[[np.ndarray], np.ndarray]] = None,
+        preprocess : typing.Optional[typing.Callable[[np.ndarray], np.ndarray]] = None,
+        postprocess : typing.Optional[typing.Callable[[np.ndarray], np.ndarray]] = None,
         **kwargs,
     ):
         arr, frame_count = None, 0
         def transform(image : np.ndarray):
             nonlocal arr, frame_count
             if skip_frames <= 0 or frame_count % skip_frames == 0:
-                image = Image.fromarray(image.astype(np.uint8), mode='RGB')
+                image = image.transpose((1, 0, 2)).astype(float) / 255.
+                if preprocess:
+                    image = preprocess(image)
                 arr = self.transform(image, return_array=True, **kwargs)
+                if postprocess:
+                    arr = postprocess(arr)
             if skip_frames > 0:
                 frame_count = (frame_count + 1) % skip_frames
             return arr
-        if filter:
-            _transform = transform
-            def transform(image : np.ndarray):
-                return _transform(filter(image))
         return video.image_transform(transform)
