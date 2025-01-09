@@ -1,4 +1,4 @@
-import torch
+import numpy as np
 
 
 illuminants = \
@@ -17,7 +17,7 @@ illuminants = \
      "D55": {'2': (0.956797052643698, 1, 0.9214805860173273),
              '10': (0.9579665682254781, 1, 0.9092525159847462),
              'R': (0.9565317453467969, 1, 0.9202554587037198)},
-     "D65": {'2': (0.95047, 1., 1.08883),   # This was: `lab_ref_white`
+     "D65": {'2': (0.95047, 1., 1.08883),
              '10': (0.94809667673716, 1, 1.0730513595166162),
              'R': (0.9532057125493769, 1, 1.0853843816469158)},
      "D75": {'2': (0.9497220898840717, 1, 1.226393520724154),
@@ -27,48 +27,48 @@ illuminants = \
            '10': (1.0, 1.0, 1.0),
            'R': (1.0, 1.0, 1.0)}}
 
-xyz_from_rgb = torch.tensor([[0.412453, 0.357580, 0.180423],
-                             [0.212671, 0.715160, 0.072169],
-                             [0.019334, 0.119193, 0.950227]])
-rgb_from_xyz = torch.linalg.inv(xyz_from_rgb)
+xyz_from_rgb = np.array([[0.412453, 0.357580, 0.180423],
+                         [0.212671, 0.715160, 0.072169],
+                         [0.019334, 0.119193, 0.950227]])
+rgb_from_xyz = np.linalg.inv(xyz_from_rgb)
 
 def _convert(matrix, arr):
-    return arr @ matrix.T.to(dtype=arr.dtype, device=arr.device)
+    return arr @ matrix.T.astype(arr.dtype)
 
-def get_xyz_coords(illuminant, observer, dtype=torch.float, device=torch.device('cpu')):
+def get_xyz_coords(illuminant, observer, dtype : np.dtype = float):
     illuminant, observer = illuminant.upper(), observer.upper()
     try:
-        return torch.asarray(illuminants[illuminant][observer], dtype=dtype, device=device)
+        return np.asarray(illuminants[illuminant][observer], dtype=dtype)
     except KeyError:
         raise ValueError(f'Unknown illuminant/observer combination '
                          f'(`{illuminant}`, `{observer}`)')
 
-def rgb2xyz(rgb : torch.Tensor) -> torch.Tensor:
-    arr = rgb.clone()
+def rgb2xyz(rgb : np.ndarray) -> np.ndarray:
+    arr = rgb.copy()
     mask = rgb > 0.04045
-    arr[mask] = torch.pow((arr[mask] + 0.055) / 1.055, 2.4)
+    arr[mask] = np.power((arr[mask] + 0.055) / 1.055, 2.4)
     arr[~mask] = arr[~mask] / 12.92
     return _convert(xyz_from_rgb, arr)
 
 def xyz2rgb(xyz):
     arr = _convert(rgb_from_xyz, xyz)
     mask = arr > 0.031308
-    arr[mask] = 1.055 * torch.pow(arr[mask], 1 / 2.4) - 0.055
+    arr[mask] = 1.055 * np.power(arr[mask], 1 / 2.4) - 0.055
     arr[~mask] = arr[~mask] * 12.92
     return arr.clip(0, 1)
 
 def xyz2lab(xyz, illuminant="D65", observer="2"):
-    xyz_ref_white = get_xyz_coords(illuminant, observer, xyz.dtype, xyz.device)
+    xyz_ref_white = get_xyz_coords(illuminant, observer, xyz.dtype)
     arr = xyz / xyz_ref_white
     mask = arr > 0.008856
-    arr[mask] = torch.pow(arr[mask], 1 / 3)
+    arr[mask] = np.power(arr[mask], 1 / 3)
     arr[~mask] = 7.787 * arr[~mask] + 16. / 116.
 
     x, y, z = arr[..., 0], arr[..., 1], arr[..., 2]
     L = (116. * y) - 16.
     a = 500. * (x - y)
     b = 200. * (y - z)
-    return torch.stack([L, a, b], dim=-1)
+    return np.stack([L, a, b], axis=-1)
 
 def lab2xyz(lab, illuminant="D65", observer="2"):
     L, a, b = lab[..., 0], lab[..., 1], lab[..., 2]
@@ -76,12 +76,12 @@ def lab2xyz(lab, illuminant="D65", observer="2"):
     x = (a / 500.) + y
     z = y - (b / 200.)
 
-    out = torch.stack([x, y, z], dim=-1)
+    out = np.stack([x, y, z], axis=-1)
     mask = out > 0.2068966
-    out[mask] = torch.pow(out[mask], 3.)
+    out[mask] = np.power(out[mask], 3.)
     out[~mask] = (out[~mask] - 16. / 116.) / 7.787
 
-    xyz_ref_white = get_xyz_coords(illuminant, observer, out.dtype, out.device)
+    xyz_ref_white = get_xyz_coords(illuminant, observer, out.dtype)
     out = out * xyz_ref_white
     return out
 
@@ -90,3 +90,6 @@ def rgb2lab(rgb, illuminant="D65", observer="2"):
 
 def lab2rgb(lab, illuminant="D65", observer="2"):
     return xyz2rgb(lab2xyz(lab, illuminant, observer))
+
+
+__all__ = ['rgb2lab', 'lab2rgb', 'rgb2xyz', 'xyz2rgb']

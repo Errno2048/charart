@@ -3,8 +3,9 @@ from collections.abc import Iterable as _Iterable
 
 from PIL import Image, ImageDraw, ImageFont, ImageColor
 import numpy as np
-from skimage import color
 import moviepy
+
+from .utils import color
 
 
 class Box:
@@ -308,3 +309,6 @@ class Charart:
                 frame_count = (frame_count + 1) % skip_frames
             return arr
         return video.image_transform(transform)
+
+
+__all__ = ['Charart']

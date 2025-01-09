@@ -4,64 +4,14 @@ from collections.abc import Iterable as _Iterable
 from PIL import Image, ImageDraw, ImageFont, ImageColor
 import torch
 import numpy as np
-from . import color
 import moviepy
 
-
-class Box:
-    def __init__(self, left=0, top=0, right=0, bottom=0):
-        self.left = left
-        self.top = top
-        self.right = right
-        self.bottom = bottom
-
-    def tuple(self):
-        return (self.left, self.top, self.right, self.bottom)
-
-    def copy(self):
-        return Box(self.left, self.top, self.right, self.bottom)
-
-    def union(self, box, inplace=False):
-        if not inplace:
-            return self.copy().union(box, inplace=True)
-        self.left = min(self.left, box.left)
-        self.top = min(self.top, box.top)
-        self.right = max(self.right, box.right)
-        self.bottom = max(self.bottom, box.bottom)
-        return self
-
-    def intersection(self, box, inplace=False):
-        if not inplace:
-            return self.copy().intersection(box, inplace=True)
-        self.left = max(self.left, box.left)
-        self.top = max(self.top, box.top)
-        self.right = min(self.right, box.right)
-        self.bottom = min(self.bottom, box.bottom)
-        return self
-
-    def move(self, x, y, inplace=False):
-        if not inplace:
-            return self.copy().move(x, y, inplace=True)
-        self.left += x
-        self.right += x
-        self.top += y
-        self.bottom += y
-        return self
-
-    @property
-    def width(self):
-        return self.right - self.left
-
-    @property
-    def height(self):
-        return self.bottom - self.top
+from .utils import color
+from charart.charart import Box, Charart as _CharartBase
 
 
 class Charart:
-    class char:
-        def __init__(self, char, box : Box):
-            self.char = char
-            self.box = box
+    char = _CharartBase.char
 
     def __init__(
         self,
@@ -311,3 +261,6 @@ class Charart:
                 frame_count = (frame_count + 1) % skip_frames
             return arr
         return video.image_transform(transform)
+
+
+__all__ = ['Charart']

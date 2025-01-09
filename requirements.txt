@@ -1,5 +1,5 @@
-numpy
-moviepy
-pillow
-scikit-image
-torch
+numpy~=1.26.3
+moviepy~=2.1.1
+pillow~=10.3.0
+torch~=2.0.1
+setuptools~=68.0.0

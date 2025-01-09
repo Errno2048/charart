@@ -1,15 +1,13 @@
 import math
+import typing
 
 import numpy as np
-import torch
 import moviepy
 from PIL import Image
-from skimage.color import rgb2lab, lab2rgb
-
-from .. import color
+from .color import rgb2lab, lab2rgb
 
 
-def image_norm_filter(image : Image.Image, outlier_ratio=0.01):
+def image_norm_filter(image : Image.Image, outlier_ratio=0.01) -> Image.Image:
     w, h = image.size
     sz = w * h
     outlier_index = math.floor(sz * outlier_ratio)
@@ -23,7 +21,9 @@ def image_norm_filter(image : Image.Image, outlier_ratio=0.01):
     new_image_rgb = lab2rgb(image_lab, illuminant='D65')
     return Image.fromarray((new_image_rgb * 255).astype(np.uint8), 'RGB')
 
-def video_norm_filter(video : moviepy.VideoClip, outlier_ratio=0.01, skip_frames=0):
+
+def video_norm_filter(video : moviepy.VideoClip, outlier_ratio=0.01, skip_frames=0) \
+        -> typing.Callable[[np.ndarray], np.ndarray]:
     w, h = video.size
     sz = w * h
     outlier_index = math.floor(sz * outlier_ratio)
@@ -55,11 +55,14 @@ def video_norm_filter(video : moviepy.VideoClip, outlier_ratio=0.01, skip_frames
         filter = None
     else:
         def wrapper(min_, max_):
-            def filter(image : torch.Tensor):
+            def filter(image):
                 nonlocal min_, max_
-                image = color.rgb2lab(image, illuminant='D65')
+                image = rgb2lab(image, illuminant='D65')
                 image[:, :, 0] = ((image[:, :, 0] - min_) / (max_ - min_)).clip(0., 1.) * 100.
-                return color.lab2rgb(image, illuminant='D65')
+                return lab2rgb(image, illuminant='D65')
             return filter
         filter = wrapper(min_, max_)
     return filter
+
+
+__all__ = ['image_norm_filter', 'video_norm_filter']

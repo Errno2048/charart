@@ -4,7 +4,8 @@ from PIL import ImageFont
 import torch
 import scenedetect
 
-from charart.torch import Charart, color
+from charart.backend.pytorch import Charart
+from charart.backend.pytorch.utils import color
 
 
 def video_transform(
