@@ -7,64 +7,64 @@ import scenedetect
 from charart.torch import Charart, color
 
 
-class VideoSceneCharart(Charart):
-    def video_transform(
-        self,
-        path,
-        skip_frames=0,
-        sample_frames=30,
-        inverse_threshold=0.25,
-        scale=None,
-        preprocess=None,
-        postprocess=None,
-        **kwargs,
-    ):
-        sample_frames = max(1, sample_frames)
+def video_transform(
+    path,
+    charart,
+    inv_charart,
+    device,
+    skip_frames=0,
+    sample_frames=30,
+    inverse_threshold=0.4,
+    scale=None,
+    preprocess=None,
+    postprocess=None,
+    **kwargs,
+):
+    sample_frames = max(1, sample_frames)
 
-        video_scenes = scenedetect.detect(str(path), scenedetect.ContentDetector(), show_progress=True)
-        video = moviepy.VideoFileClip(str(path))
-        if scale:
-            video = video.resized(scale)
-        prev_inversed = False
-        inverse_framecounts = [0]
-        for start, end in video_scenes:
-            s_start, s_end = start.get_seconds(), end.get_seconds()
-            duration = s_end - s_start
-            frames = []
-            for sample_time in np.arange(s_start + duration / 2, s_end, duration / sample_frames):
-                frame = video.get_frame(sample_time)
-                frames.append(torch.tensor(frame, device=self._device, dtype=torch.float) / 255.)
-            frames = color.rgb2lab(torch.stack(frames, dim=0), self._lab_illuminant, self._lab_observer)
-            mean_lightness = (frames[..., 0].mean() / 100.).item()
-            is_inversed = mean_lightness <= inverse_threshold
-            if prev_inversed != is_inversed:
-                inverse_framecounts.append(end.get_frames())
+    video_scenes = scenedetect.detect(str(path), scenedetect.ContentDetector(), show_progress=True)
+    video = moviepy.VideoFileClip(str(path))
+    if scale:
+        video = video.resized(scale)
+    prev_inversed = False
+    inverse_framecounts = [0]
+    for start, end in video_scenes:
+        s_start, s_end = start.get_seconds(), end.get_seconds()
+        duration = s_end - s_start
+        frames = []
+        for sample_time in np.arange(s_start + duration / 2, s_end, duration / sample_frames):
+            frame = video.get_frame(sample_time)
+            frames.append(torch.tensor(frame, device=device, dtype=torch.float) / 255.)
+        frames = color.rgb2lab(torch.stack(frames, dim=0))
+        mean_lightness = (frames[..., 0].mean() / 100.).item()
+        is_inversed = mean_lightness <= inverse_threshold
+        if prev_inversed != is_inversed:
+            inverse_framecounts.append(end.get_frames())
+        else:
+            inverse_framecounts[-1] = end.get_frames()
+        prev_inversed = is_inversed
+    inverse_framecounts.pop()
+    inverse_framecounts.reverse()
+
+    arr, frame_count, inverse = None, 0, False
+    def transform(image : np.ndarray):
+        nonlocal arr, frame_count, inverse
+        if inverse_framecounts and frame_count == inverse_framecounts[-1]:
+            inverse = not inverse
+            inverse_framecounts.pop()
+        if skip_frames <= 0 or frame_count % skip_frames == 0:
+            image = torch.tensor(image, device=device).transpose(0, 1).to(torch.float) / 255.
+            if preprocess:
+                image = preprocess(image)
+            if inverse:
+                arr = inv_charart.transform(image, return_array=True, **kwargs).numpy(force=True)
             else:
-                inverse_framecounts[-1] = end.get_frames()
-            prev_inversed = is_inversed
-        inverse_framecounts.pop()
-        inverse_framecounts.reverse()
-
-        arr, frame_count, inverse = None, 0, False
-        def transform(image : np.ndarray):
-            nonlocal arr, frame_count, inverse
-            if inverse_framecounts and frame_count == inverse_framecounts[-1]:
-                inverse = not inverse
-                inverse_framecounts.pop()
-            if skip_frames <= 0 or frame_count % skip_frames == 0:
-                image = torch.tensor(image, device=self._device).transpose(0, 1).to(torch.float) / 255.
-                if preprocess:
-                    image = preprocess(image)
-                if inverse:
-                    image = 1. - image
-                arr = self.transform(image, return_array=True, **kwargs).numpy(force=True)
-                if inverse:
-                    arr = 1. - arr
-                if postprocess:
-                    arr = postprocess(arr)
-            frame_count += 1
-            return arr
-        return video.image_transform(transform)
+                arr = charart.transform(image, return_array=True, **kwargs).numpy(force=True)
+            if postprocess:
+                arr = postprocess(arr)
+        frame_count += 1
+        return arr
+    return video.image_transform(transform)
 
 
 def main():
@@ -125,18 +125,36 @@ def main():
                 except OSError:
                     font = ImageFont.load_default()
 
-    charart = VideoSceneCharart(
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    charart = Charart(
         font_size,
         font,
         hparts=2,
         vparts=2,
         hspace=0,
         vspace=0,
-        device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+        background_color='#ffffff',
+        foreground_color='#000000',
+        device=device,
     )
     charart.add_character(charset)
-    video = charart.video_transform(
+    inv_charart = Charart(
+        font_size,
+        font,
+        hparts=2,
+        vparts=2,
+        hspace=0,
+        vspace=0,
+        background_color='#000000',
+        foreground_color='#ffffff',
+        device=device,
+    )
+    inv_charart.add_character(charset)
+    video = video_transform(
         input_path,
+        charart,
+        inv_charart,
+        device,
         scale=args.scale,
         skip_frames=args.skip_frames,
     )
