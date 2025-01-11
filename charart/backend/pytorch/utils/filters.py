@@ -6,8 +6,7 @@ import moviepy
 import torch
 
 from . import color
-from charart.utils.color import rgb2lab as np_rgb2lab
-from charart.utils.filters import image_norm_filter
+from charart.backend.numpy.utils.color import rgb2lab as np_rgb2lab
 
 
 def video_norm_filter(video : moviepy.VideoClip, outlier_ratio=0.01, skip_frames=0) \

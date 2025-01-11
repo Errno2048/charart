@@ -1,5 +1,5 @@
 # Char-art
- Character art image & video generator. Support literally ANY characters.
+ Character art (ASCII art) image & video generator. Support literally ANY characters.
 
 ![](demo/bliss.png)
 

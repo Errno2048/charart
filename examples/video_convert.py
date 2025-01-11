@@ -4,7 +4,7 @@ from PIL import ImageFont
 import torch
 import scenedetect
 
-from charart.backend.pytorch import Charart
+from charart import Charart
 from charart.backend.pytorch.utils import color
 
 
@@ -136,6 +136,7 @@ def main():
         vspace=0,
         background_color='#ffffff',
         foreground_color='#000000',
+        backend='pytorch',
         device=device,
     )
     charart.add_character(charset)
@@ -148,6 +149,7 @@ def main():
         vspace=0,
         background_color='#000000',
         foreground_color='#ffffff',
+        backend='pytorch',
         device=device,
     )
     inv_charart.add_character(charset)
