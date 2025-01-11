@@ -6,16 +6,11 @@
 ## A simple example
 
 ```python
-import math
-
-import numpy as np
 from PIL import Image, ImageFont
 import torch
 import moviepy
-from skimage.color import rgb2lab
 
-from charart.torch import Charart, color
-from charart.torch.utils import video_norm_filter
+from charart import Charart
 
 UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 LOWER = "abcdefghijklmnopqrstuvwxyz"
@@ -31,7 +26,8 @@ charart = Charart(
     vspace=0, # specify the vertical spaces between characters
     hparts=2, # horizontal granularity for character matching
     vparts=2, # vertical granularity for character matching
-    device=torch.device('cuda'),
+    backend='pytorch',
+    device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
 )
 
 charart.add_character(
@@ -46,7 +42,7 @@ out_image.save('test_image_out.png')
 # Video to character art
 in_video = moviepy.VideoFileClip('test_video.mp4')
 # To change the lightness of the video to avoid extremely dark or bright frames
-norm_filter = video_norm_filter(in_video, outlier_ratio=0.01, skip_frames=30)
+norm_filter = charart.filter.video_norm_filter(in_video, outlier_ratio=0.01, skip_frames=30)
 out_video = charart.video_transform(in_video, skip_frames=4, filter=norm_filter)
 out_video.write_videofile('test_video_out.mp4')
 ```
